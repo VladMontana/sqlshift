@@ -33,7 +33,7 @@ from sqlshift import SQLRouter
 router = SQLRouter()
 decision = router.route("SELECT count(*) FROM analytics_events")
 print(decision.target)  # "clickhouse"
-print(decision.sql)     # Transpiled SQL for ClickHouse
+print(decision.sql)  # Transpiled SQL for ClickHouse
 ```
 
 ## License
