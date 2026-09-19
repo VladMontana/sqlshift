@@ -11,12 +11,8 @@ from sqlshift.client import AsyncSQLShiftClient, SmartClient
 @pytest.fixture
 def mock_db_drivers():
     """Фикстура мока драйверов asyncpg и clickhouse_connect."""
-    patch_pg = patch(
-        "sqlshift.client.async_client.asyncpg.create_pool", new_callable=AsyncMock
-    )
-    patch_ch = patch(
-        "sqlshift.client.async_client.clickhouse_connect.get_client"
-    )
+    patch_pg = patch("sqlshift.client.async_client.asyncpg.create_pool", new_callable=AsyncMock)
+    patch_ch = patch("sqlshift.client.async_client.clickhouse_connect.get_client")
     with patch_pg as mock_pg_pool_factory, patch_ch as mock_ch_client_factory:
         # Настраиваем mock asyncpg
         mock_pg_pool = MagicMock()

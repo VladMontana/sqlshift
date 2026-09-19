@@ -126,4 +126,3 @@ class AsyncSQLShiftClient:
         if self._ch_client is None:
             await self.connect()
         return await asyncio.to_thread(self._sync_ch_query, sql)
-
