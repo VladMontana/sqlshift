@@ -21,11 +21,12 @@ class SQLShiftRouter:
 
         is_analytical, complexity, reason = analyze_query(tree)
 
+        target: TargetDatabase
         if is_analytical:
-            target: TargetDatabase = "clickhouse"
+            target = "clickhouse"
             final_sql = transpile_to_clickhouse(tree)
         else:
-            target: TargetDatabase = "postgresql"
+            target = "postgresql"
             final_sql = sql.strip()
 
         return RouteDecision(
