@@ -25,11 +25,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app(
-    setting: ServerSettings | None = None,
+    settings: ServerSettings | None = None,
     router: SQLShiftRouter | None = None,
     client: "AsyncSQLShiftClient | None" = None,
 ) -> FastAPI:
-    settings = setting or ServerSettings()
+    settings = settings or ServerSettings()
     router = router or SQLShiftRouter()
 
     app = FastAPI(title=settings.title, version=settings.version, lifespan=lifespan)
