@@ -10,7 +10,7 @@ import sys
 
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(encoding="utf-8") # ty: ignore[call-non-callable]
+        sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[call-non-callable]
     except Exception:
         pass
 
@@ -27,7 +27,7 @@ def main() -> None:
     # 1. Программное создание инстанса шлюза с кастомными настройками
     settings = ServerSettings(
         title="My Custom SQL Gateway",
-        version="1.0.0",
+        version="0.1.0",
     )
     app = create_app(settings=settings)
 

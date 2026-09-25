@@ -14,7 +14,7 @@ import sys
 
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(encoding="utf-8") # ty: ignore[call-non-callable]
+        sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[call-non-callable]
     except Exception:
         pass
 
