@@ -5,11 +5,11 @@
   <em>Интеллектуальный SQL-маршрутизатор и AST-транспайлер для гибридных систем PostgreSQL & ClickHouse</em>
 </p>
 <p align="center">
-  <a href="https://github.com/vlad/sqlshift"><img src="https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue?logo=python&logoColor=white" alt="Python Version"></a>
-  <a href="https://github.com/vlad/sqlshift"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
-  <a href="https://github.com/vlad/sqlshift"><img src="https://img.shields.io/badge/Type_Checked-mypy-blueviolet?logo=python" alt="MyPy"></a>
-  <a href="https://github.com/vlad/sqlshift"><img src="https://img.shields.io/badge/Linted-ruff-orange?logo=ruff" alt="Ruff"></a>
-  <a href="https://github.com/vlad/sqlshift"><img src="https://img.shields.io/badge/Tests-43%20passed-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/VladMontana/sqlshift"><img src="https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue?logo=python&logoColor=white" alt="Python Version"></a>
+  <a href="https://github.com/VladMontana/sqlshift"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+  <a href="https://github.com/VladMontana/sqlshift"><img src="https://img.shields.io/badge/Type_Checked-mypy-blueviolet?logo=python" alt="MyPy"></a>
+  <a href="https://github.com/VladMontana/sqlshift"><img src="https://img.shields.io/badge/Linted-ruff-orange?logo=ruff" alt="Ruff"></a>
+  <a href="https://github.com/VladMontana/sqlshift"><img src="https://img.shields.io/badge/Tests-43%20passed-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -243,7 +243,7 @@ resp, err := http.Post(
 
 ```bash
 # Клонирование и установка зависимостей
-git clone __link-repositories__
+git clone https://github.com/VladMontana/sqlshift.git
 cd sqlshift
 uv sync --all-extras
 
