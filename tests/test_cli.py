@@ -64,3 +64,32 @@ def test_cli_benchmark_file_not_found() -> None:
     result = runner.invoke(app, ["benchmark", "non_existent_file.sql"])
     assert result.exit_code == 1
     assert "FILE NOT FOUND" in result.stdout.upper()
+
+
+def test_cli_audit_success(tmp_path: Path) -> None:
+    sql_file = tmp_path / "queries.sql"
+    sql_file.write_text(
+        "SELECT id FROM users WHERE id = 1;\n"
+        "SELECT date_trunc('month', ts), sum(v) FROM stats GROUP BY 1;\n",
+        encoding="utf-8",
+    )
+    report_file = tmp_path / "report.html"
+    result = runner.invoke(app, ["audit", str(sql_file), "-o", str(report_file)])
+    assert result.exit_code == 0
+    assert "HTML dashboard generated" in result.stdout
+    assert report_file.exists()
+    assert "<!DOCTYPE html>" in report_file.read_text(encoding="utf-8")
+
+
+def test_cli_audit_file_not_found() -> None:
+    result = runner.invoke(app, ["audit", "missing.sql"])
+    assert result.exit_code == 1
+    assert "FILE NOT FOUND" in result.stdout.upper()
+
+
+def test_cli_audit_empty_file(tmp_path: Path) -> None:
+    empty_file = tmp_path / "empty.sql"
+    empty_file.write_text("-- empty", encoding="utf-8")
+    result = runner.invoke(app, ["audit", str(empty_file)])
+    assert result.exit_code == 1
+    assert "AUDIT ERROR" in result.stdout.upper()

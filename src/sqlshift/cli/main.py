@@ -6,9 +6,10 @@ from typing import Annotated
 
 import typer
 
-from sqlshift import __version__
+from sqlshift import AnalyzeAllSql, __version__
 from sqlshift.cli.ui import (
     console,
+    print_audit_summary,
     print_error_box,
     print_header,
     print_route_decision,
@@ -52,6 +53,59 @@ def route_query(
 def version_cmd() -> None:
     """Показывает текущую установленную версию библиотеки sqlshift."""
     print_header(f"v{__version__}")
+
+
+@app.command(name="audit")
+def audit_cmd(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="Путь к .sql файлу с запросами для комплексного анализа",
+            show_default=False,
+        ),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Путь для сохранения интерактивного HTML-отчета",
+        ),
+    ] = Path("sqlshift_report.html"),
+    title: Annotated[
+        str,
+        typer.Option(
+            "--title",
+            "-t",
+            help="Заголовок HTML-отчета",
+        ),
+    ] = "SQLShift — Database Audit Report",
+    open_browser: Annotated[
+        bool,
+        typer.Option(
+            "--open",
+            help="Автоматически открыть сгенерированный HTML-отчет в браузере",
+        ),
+    ] = False,
+) -> None:
+    """Выполняет пакетный аудит SQL-запросов из файла и генерирует интерактивный HTML-дашборд."""
+    if not file.exists() or not file.is_file():
+        print_error_box("File Not Found", f"Указанный файл не существует: {file}")
+        raise typer.Exit(code=1)
+
+    try:
+        analyzer = AnalyzeAllSql.from_file(file)
+        summary = analyzer.analyze()
+        analyzer.to_html(output_path=output, title=title)
+        print_audit_summary(summary, output)
+
+        if open_browser:
+            import webbrowser
+
+            webbrowser.open(output.resolve().as_uri())
+    except Exception as exc:
+        print_error_box("Audit Error", str(exc))
+        raise typer.Exit(code=1) from exc
 
 
 def load_queries_from_file(file_path: Path) -> list[str]:

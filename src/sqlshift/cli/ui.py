@@ -1,13 +1,14 @@
 """Красивый CLI интерфейс в стиле FastAPI (Typer + Rich)."""
 
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
-from sqlshift.core.models import RouteDecision
+from sqlshift.core.models import BatchAuditSummary, RouteDecision
 
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     try:
@@ -159,4 +160,51 @@ def print_error_box(title: str, detail: str) -> None:
     console.print()
     badge = Text(f" {title.upper()} ", style="bold white on " + COLOR_ERROR)
     console.print(badge + Text(f" {detail}", style="bold red"))
+    console.print()
+
+
+def print_audit_summary(summary: BatchAuditSummary, output_path: Path) -> None:
+    """Отображает сводные результаты аудита и путь к сгенерированному HTML-файлу."""
+    print_header("Batch Audit & HTML Report 📊")
+
+    total = summary.total_queries
+    pg_pct = round((summary.postgres_count / total * 100) if total > 0 else 0, 1)
+    ch_pct = round((summary.clickhouse_count / total * 100) if total > 0 else 0, 1)
+
+    print_badge_line(
+        "total",
+        Text(f"{total} queries analyzed", style="bold white"),
+        badge_bg=COLOR_BRAND,
+    )
+
+    pg_text = Text(f"{summary.postgres_count} queries ({pg_pct}%)", style="bold cyan")
+    print_badge_line("postgres", pg_text, badge_bg=COLOR_TARGET)
+
+    ch_text = Text(f"{summary.clickhouse_count} queries ({ch_pct}%)", style="bold yellow")
+    print_badge_line("clickhouse", ch_text, badge_bg="#854d0e")
+
+    low = summary.complexity_counts.get("low", 0)
+    med = summary.complexity_counts.get("medium", 0)
+    high = summary.complexity_counts.get("high", 0)
+    comp_text = Text(f"{low} Low / {med} Med / {high} High", style="white")
+    print_badge_line("complex", comp_text, badge_bg=COLOR_COMPLEX)
+
+    if summary.bottleneck_detected:
+        bottleneck_items = [f"{k}: {v}" for k, v in summary.bottleneck_detected.items()]
+        b_text = Text(", ".join(bottleneck_items), style="bold yellow")
+        print_badge_line("issues", b_text, badge_bg="#b45309")
+    else:
+        print_badge_line(
+            "issues",
+            Text("No critical bottlenecks found", style="bold green"),
+            badge_bg=COLOR_INFO,
+        )
+
+    console.print()
+    abs_path = output_path.resolve()
+    print_badge_line(
+        "report",
+        Text(f"HTML dashboard generated: {abs_path}", style="bold green"),
+        badge_bg=COLOR_INFO,
+    )
     console.print()
