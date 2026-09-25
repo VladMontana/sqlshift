@@ -1,6 +1,14 @@
 """sqlshift: Cross-dialect SQL query router and transpiler."""
 
-from sqlshift.core.models import QueryComplexity, RouteDecision, TargetDatabase
+from sqlshift.core.batch_analyzer import AnalyzeAllSql
+from sqlshift.core.html_report import generate_html_report
+from sqlshift.core.models import (
+    BatchAuditSummary,
+    QueryAuditItem,
+    QueryComplexity,
+    RouteDecision,
+    TargetDatabase,
+)
 from sqlshift.core.router import SQLShiftRouter
 from sqlshift.utils.exception import SQLParsingError, SQLShiftError, TranspilationError
 
@@ -15,6 +23,10 @@ __all__ = [
     "RouteDecision",
     "TargetDatabase",
     "QueryComplexity",
+    "AnalyzeAllSql",
+    "generate_html_report",
+    "BatchAuditSummary",
+    "QueryAuditItem",
     "SQLShiftError",
     "SQLParsingError",
     "TranspilationError",
