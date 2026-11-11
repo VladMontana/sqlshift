@@ -5,11 +5,28 @@ from sqlshift.core.models import QueryComplexity
 
 def analyze_query(tree: exp.Expression) -> tuple[bool, QueryComplexity, str]:
     """Анализирует AST-дерево запроса и определяет, является ли он аналитическим (OLAP).
+
     Returns:
         tuple[is_analytical, complexity, reason]
     """
     if isinstance(tree, (exp.Insert, exp.Update, exp.Delete)):
         return False, "low", f"Транзакционная операция (DML), ({tree.key.upper()})"
+
+    if isinstance(
+        tree,
+        (
+            exp.Create,
+            exp.Drop,
+            exp.TruncateTable,
+            exp.Alter,
+            exp.Transaction,
+            exp.Commit,
+            exp.Rollback,
+            exp.Command,
+            exp.Set,
+        ),
+    ):
+        return False, "low", f"Команда управления DDL/TCL, ({tree.key.upper()})"
 
     if tree.find(exp.With):
         return True, "high", "Наличие CTE"
@@ -32,6 +49,6 @@ def analyze_query(tree: exp.Expression) -> tuple[bool, QueryComplexity, str]:
     if len(joins) >= 2:
         return True, "high", f"Соединение {len(joins)} таблиц"
     elif len(joins) == 1:
-        return True, "medium", "Наличие join"
+        return False, "medium", "Одиночное соединение таблиц (OLTP JOIN)"
 
     return False, "low", "Обычный SELECT без сложных конструкций"

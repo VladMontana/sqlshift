@@ -186,6 +186,41 @@ def test_syntax_error_raises_parsing_error(router: SQLShiftRouter) -> None:
     logger.info("Успешно перехвачена синтаксическая ошибка: %s", exc_info.value)
 
 
+def test_multi_statement_raises_parsing_error(router: SQLShiftRouter) -> None:
+    multi_sql = "SELECT 1; DROP TABLE users;"
+    with pytest.raises(SQLParsingError, match="несколько SQL-инструкций"):
+        router.route(multi_sql)
+
+
+def test_oltp_single_join_stays_in_postgres(router: SQLShiftRouter) -> None:
+    sql = "SELECT u.name, o.id FROM users u JOIN orders o ON u.id = o.user_id WHERE u.id = 1"
+    decision = router.route(sql)
+    assert decision.target == "postgresql"
+    assert not decision.is_analytical
+    assert "OLTP JOIN" in decision.reason
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "CREATE TABLE items (id INT, name TEXT)",
+        "DROP TABLE items",
+        "TRUNCATE TABLE items",
+        "ALTER TABLE items ADD COLUMN price NUMERIC",
+        "BEGIN",
+        "COMMIT",
+        "ROLLBACK",
+    ],
+)
+def test_ddl_and_transaction_commands_routed_to_postgres(
+    router: SQLShiftRouter, query: str
+) -> None:
+    decision = router.route(query)
+    assert decision.target == "postgresql"
+    assert not decision.is_analytical
+    assert "DDL/TCL" in decision.reason
+
+
 # ============================================================================
 # 5. Нагрузочный бенчмарк (замер производительности чистого in-memory роутинга)
 # ============================================================================

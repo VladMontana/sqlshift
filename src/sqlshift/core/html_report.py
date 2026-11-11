@@ -50,7 +50,7 @@ def generate_html_report(
                 "bottlenecks": it.bottlenecks,
             }
         )
-    items_json = json.dumps(items_data, ensure_ascii=False)
+    items_json = json.dumps(items_data, ensure_ascii=False).replace("<", "\\u003c")
 
     bottleneck_badges_html = ""
     if summary.bottleneck_detected:
@@ -600,7 +600,13 @@ def generate_html_report(
     }}
 
     function escapeHtml(str) {{
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }}
 
     searchInput.addEventListener('input', (e) => {{

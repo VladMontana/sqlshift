@@ -45,7 +45,10 @@ async def query(payload: QueryRequest, request: Request) -> QueryResponse:
     start_time = time.perf_counter()
     shift_router = request.app.state.router
     decision = shift_router.route(payload.sql)
-    data = await client.fetch(payload.sql)
+    if hasattr(client, "execute_decision") and type(client).__name__ == "AsyncSQLShiftClient":
+        data = await client.execute_decision(decision)
+    else:
+        data = await client.fetch(payload.sql)
     exec_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
     return QueryResponse(

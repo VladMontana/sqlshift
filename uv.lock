@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -930,7 +930,6 @@ server = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "ty" },
 ]
 
@@ -954,10 +953,7 @@ requires-dist = [
 provides-extras = ["client", "server", "all", "dev"]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "ty", specifier = ">=0.0.81" },
-]
+dev = [{ name = "ty", specifier = ">=0.0.81" }]
 
 [[package]]
 name = "starlette"

@@ -106,3 +106,26 @@ def test_generate_html_report_direct() -> None:
     assert "<!DOCTYPE html>" in html
     assert "Direct Report" in html
     assert "SELECT 1" in html
+
+
+def test_analyze_from_file_with_semicolons_in_strings(tmp_path: Path) -> None:
+    sql_file = tmp_path / "quoted_semicolons.sql"
+    sql_file.write_text(
+        "SELECT * FROM logs WHERE message = 'val;with;semicolons';\n"
+        "SELECT count(*) FROM events;\n",
+        encoding="utf-8",
+    )
+    analyzer = AnalyzeAllSql.from_file(sql_file)
+    summary = analyzer.analyze()
+    assert summary.total_queries == 2
+    assert summary.postgres_count == 1
+    assert summary.clickhouse_count == 1
+
+
+def test_html_report_xss_protection() -> None:
+    malicious_query = "SELECT '</script><script>alert(1)</script>' AS evil"
+    analyzer = AnalyzeAllSql.from_list([malicious_query])
+    summary = analyzer.analyze()
+    html = generate_html_report(summary)
+    assert "</script><script>alert(1)</script>" not in html
+    assert "\\u003c/script>" in html

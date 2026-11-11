@@ -1,6 +1,7 @@
 from collections import Counter
 from pathlib import Path
 
+import sqlglot
 from sqlglot import exp
 
 from sqlshift.core.models import BatchAuditSummary, QueryAuditItem
@@ -24,19 +25,22 @@ class AnalyzeAllSql:
             raise ValueError(f"Ожидается файл, получен каталог: {file}")
 
         content = file.read_text(encoding="utf-8")
-
-        raw_statements = content.split(";")
-        queries: list[str] = []
-
-        for stmnt in raw_statements:
-            lines = [line for line in stmnt.splitlines() if not line.strip().startswith("--")]
-            cleaned = "\n".join(lines).strip()
-            if cleaned:
-                queries.append(cleaned)
-
-        if not queries:
+        if not content.strip():
             raise ValueError(f"В файле {file} не найдены валидные SQL-запросы")
 
+        try:
+            parsed_expressions = [
+                e
+                for e in sqlglot.parse(content, read="postgres")
+                if e is not None and not isinstance(e, exp.Semicolon)
+            ]
+        except Exception as exc:
+            raise ValueError(f"Ошибка синтаксического разбора файла {file}: {exc}") from exc
+
+        if not parsed_expressions:
+            raise ValueError(f"В файле {file} не найдены валидные SQL-запросы")
+
+        queries = [e.sql(dialect="postgres") for e in parsed_expressions]
         return cls(queries, router)
 
     @classmethod
@@ -76,11 +80,10 @@ class AnalyzeAllSql:
         bottleneck_counter: Counter[str] = Counter()
 
         for idx, sql in enumerate(self.queries, start=1):
-            decision = self.router.route(sql)
+            tree = parse_sql(sql, dialect=self.router.default_dialect)
+            decision = self.router.route_tree(tree, original_sql=sql)
 
-            # Парсим AST для поиска архитектурных узких мест
             try:
-                tree = parse_sql(sql)
                 bottlenecks = self._detect_bottlenecks(tree)
             except Exception:
                 bottlenecks = ["Parsing issue detected during deep AST audit"]

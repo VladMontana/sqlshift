@@ -1,3 +1,5 @@
+from sqlglot import exp
+
 from sqlshift.core.analyzer import analyze_query
 from sqlshift.core.models import RouteDecision, TargetDatabase
 from sqlshift.core.parser import parse_sql
@@ -10,15 +12,18 @@ class SQLShiftRouter:
     def __init__(self, default_dialect: str = "postgres") -> None:
         self.default_dialect = default_dialect
 
-    def route(self, sql: str) -> RouteDecision:
-        """Анализирует SQL-запрос и формирует решение о маршрутизации.
+    def route_tree(
+        self, tree: exp.Expression, original_sql: str | None = None
+    ) -> RouteDecision:
+        """Формирует решение о маршрутизации на основе уже разобранного AST-дерева.
+
         Args:
-            sql: Исходный текст SQL (в синтаксисе PostgreSQL).
+            tree: AST-выражение sqlglot.
+            original_sql: Опциональный исходный текст SQL.
+
         Returns:
             RouteDecision: Решение (база назначения, итоговый SQL, сложность, причина).
         """
-        tree = parse_sql(sql, dialect=self.default_dialect)
-
         is_analytical, complexity, reason = analyze_query(tree)
 
         target: TargetDatabase
@@ -27,7 +32,11 @@ class SQLShiftRouter:
             final_sql = transpile_to_clickhouse(tree)
         else:
             target = "postgresql"
-            final_sql = sql.strip()
+            final_sql = (
+                original_sql.strip()
+                if original_sql is not None
+                else tree.sql(dialect=self.default_dialect)
+            )
 
         return RouteDecision(
             target=target,
@@ -36,3 +45,15 @@ class SQLShiftRouter:
             estimated_complexity=complexity,
             reason=reason,
         )
+
+    def route(self, sql: str) -> RouteDecision:
+        """Анализирует SQL-запрос и формирует решение о маршрутизации.
+
+        Args:
+            sql: Исходный текст SQL (в синтаксисе PostgreSQL).
+
+        Returns:
+            RouteDecision: Решение (база назначения, итоговый SQL, сложность, причина).
+        """
+        tree = parse_sql(sql, dialect=self.default_dialect)
+        return self.route_tree(tree, original_sql=sql)

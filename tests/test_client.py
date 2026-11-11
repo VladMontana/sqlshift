@@ -1,5 +1,6 @@
 """Модульные тесты для AsyncSQLShiftClient с использованием моков (без реальных БД)."""
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -103,3 +104,28 @@ async def test_client_context_manager_lifecycle(mock_db_drivers: dict[str, Any])
     assert client._ch_client is None
     mock_db_drivers["mock_pg_pool"].close.assert_awaited_once()
     mock_db_drivers["mock_ch_client"].close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_client_parameterized_query(mock_db_drivers: dict[str, Any]) -> None:
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+    )
+    async with client:
+        await client.fetch("SELECT * FROM users WHERE id = $1", (42,))
+    mock_db_drivers["mock_pg_conn"].fetch.assert_awaited_once_with(
+        "SELECT * FROM users WHERE id = $1", 42
+    )
+
+
+@pytest.mark.asyncio
+async def test_client_concurrent_connect_race_protection(mock_db_drivers: dict[str, Any]) -> None:
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+    )
+    await asyncio.gather(*(client.connect() for _ in range(5)))
+    assert mock_db_drivers["mock_pg_pool_factory"].call_count == 1
+    assert mock_db_drivers["mock_ch_client_factory"].call_count == 1
+    await client.close()

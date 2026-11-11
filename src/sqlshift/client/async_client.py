@@ -29,7 +29,7 @@ class AsyncSQLShiftClient:
             ch_dsn="clickhouse://localhost:8123/db",
         ) as client:
             # Транзакционный запрос уйдет в Postgres
-            user = await client.fetch("SELECT * FROM users WHERE id = 1")
+            user = await client.fetch("SELECT * FROM users WHERE id = $1", (1,))
 
             # Аналитический запрос уйдет в ClickHouse с транспайлингом функций
             stats = await client.fetch(
@@ -55,27 +55,33 @@ class AsyncSQLShiftClient:
         self.ch_dsn = ch_dsn
         self._pg_pool: asyncpg.Pool | None = None
         self._ch_client: Any = None
+        self._init_lock = asyncio.Lock()
         self.router: SQLShiftRouter = router or SQLShiftRouter()
 
     async def connect(self) -> None:
-        """Инициализирует пулы подключений к PostgreSQL и ClickHouse."""
-        if self._pg_pool is None:
-            self._pg_pool = await asyncpg.create_pool(dsn=self.pg_dsn)
+        """Инициализирует пулы подключений к PostgreSQL и ClickHouse с защитой от гонок."""
+        if self._pg_pool is not None and self._ch_client is not None:
+            return
 
-        if self._ch_client is None:
-            self._ch_client = await asyncio.to_thread(
-                clickhouse_connect.get_client,
-                dsn=self.ch_dsn,
-            )
+        async with self._init_lock:
+            if self._pg_pool is None:
+                self._pg_pool = await asyncpg.create_pool(dsn=self.pg_dsn)
+
+            if self._ch_client is None:
+                self._ch_client = await asyncio.to_thread(
+                    clickhouse_connect.get_client,
+                    dsn=self.ch_dsn,
+                )
 
     async def close(self) -> None:
         """Корректно закрывает все активные пулы и соединения с базами данных."""
-        if self._pg_pool is not None:
-            await self._pg_pool.close()
-            self._pg_pool = None
-        if self._ch_client is not None:
-            await asyncio.to_thread(self._ch_client.close)
-            self._ch_client = None
+        async with self._init_lock:
+            if self._pg_pool is not None:
+                await self._pg_pool.close()
+                self._pg_pool = None
+            if self._ch_client is not None:
+                await asyncio.to_thread(self._ch_client.close)
+                self._ch_client = None
 
     async def __aenter__(self) -> "AsyncSQLShiftClient":
         """Вход в асинхронный контекстный менеджер (автоматически вызывает connect)."""
@@ -86,11 +92,35 @@ class AsyncSQLShiftClient:
         """Выход из асинхронного контекстного менеджера (гарантированно закрывает соединения)."""
         await self.close()
 
-    async def fetch(self, sql: str) -> list[dict[str, Any]]:
+    async def execute_decision(
+        self,
+        decision: RouteDecision,
+        parameters: tuple[Any, ...] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Исполняет уже подготовленное решение маршрутизатора (без повторного AST-парсинга).
+
+        Args:
+            decision: Объект RouteDecision с решением маршрутизации и целевым SQL.
+            parameters: Опциональные позиционные параметры для подстановки (для PostgreSQL).
+
+        Returns:
+            list[dict[str, Any]]: Список строк результатов.
+        """
+        if decision.target == "clickhouse":
+            return await self._execute_clickhouse(decision.sql)
+        else:
+            return await self._execute_postgres(decision.sql, parameters=parameters)
+
+    async def fetch(
+        self,
+        sql: str,
+        parameters: tuple[Any, ...] | None = None,
+    ) -> list[dict[str, Any]]:
         """Анализирует SQL-запрос, определяет базу назначения, транспайлит и возвращает строки.
 
         Args:
             sql: Текст SQL-запроса на диалекте PostgreSQL.
+            parameters: Опциональные параметры для подстановки в запрос.
 
         Returns:
             list[dict[str, Any]]: Список строк результатов, где каждая строка — словарь
@@ -101,18 +131,22 @@ class AsyncSQLShiftClient:
             TranspilationError: Если не удалось преобразовать запрос для ClickHouse.
         """
         decision: RouteDecision = self.router.route(sql)
-        if decision.target == "clickhouse":
-            return await self._execute_clickhouse(decision.sql)
-        else:
-            return await self._execute_postgres(decision.sql)
+        return await self.execute_decision(decision, parameters=parameters)
 
-    async def _execute_postgres(self, sql: str) -> list[dict[str, Any]]:
+    async def _execute_postgres(
+        self,
+        sql: str,
+        parameters: tuple[Any, ...] | None = None,
+    ) -> list[dict[str, Any]]:
         """Выполняет запрос в PostgreSQL через пул соединений asyncpg."""
         if self._pg_pool is None:
             await self.connect()
         assert self._pg_pool is not None
         async with self._pg_pool.acquire() as conn:
-            records = await conn.fetch(sql)
+            if parameters:
+                records = await conn.fetch(sql, *parameters)
+            else:
+                records = await conn.fetch(sql)
             return [dict(record) for record in records]
 
     def _sync_ch_query(self, sql: str) -> list[dict[str, Any]]:

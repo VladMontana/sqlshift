@@ -108,20 +108,6 @@ def audit_cmd(
         raise typer.Exit(code=1) from exc
 
 
-def load_queries_from_file(file_path: Path) -> list[str]:
-    """Загружает и очищает SQL-запросы из .sql файла (разбивая по точке с запятой)."""
-    content = file_path.read_text(encoding="utf-8")
-    raw_statements = content.split(";")
-    queries: list[str] = []
-    for s in raw_statements:
-        # Убираем комментарии начинающиеся с --
-        lines = [line for line in s.splitlines() if not line.strip().startswith("--")]
-        cleaned = "\n".join(lines).strip()
-        if cleaned:
-            queries.append(cleaned)
-    return queries
-
-
 @app.command(name="benchmark")
 def benchmark_cmd(
     file: Annotated[
@@ -150,7 +136,7 @@ def benchmark_cmd(
             raise typer.Exit(code=1)
 
         try:
-            sample_queries = load_queries_from_file(file)
+            sample_queries = AnalyzeAllSql.from_file(file).queries
         except Exception as exc:
             print_error_box("Read Error", f"Не удалось прочитать файл {file.name}: {exc}")
             raise typer.Exit(code=1) from exc
