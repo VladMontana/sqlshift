@@ -4,6 +4,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import traverse_scope
 
@@ -50,9 +51,14 @@ class TableCatalog:
         pg_only_tables: Iterable[str] | None = None,
         default_schema: str = "public",
         case_sensitive: bool = False,
+        schema_mapping: dict[str, str | None] | None = None,
     ) -> None:
         self.default_schema = (default_schema or "public").strip()
         self.case_sensitive = case_sensitive
+        # По умолчанию PostgreSQL схема (public) отображается в default базу ClickHouse
+        self.schema_mapping: dict[str, str | None] = (
+            schema_mapping if schema_mapping is not None else {self.default_schema.lower(): None}
+        )
 
         # Поддержка обоих вариантов имени аргумента: pg_only_tables и postgres_only_tables
         pg_only_source = pg_only_tables if pg_only_tables is not None else postgres_only_tables
@@ -61,33 +67,46 @@ class TableCatalog:
         # allowed_tables: пустой список [] означает пустой каталог (строго блокирует ClickHouse)
         self._allowed: set[TableReference] = {self._normalize(t) for t in (allowed_tables or [])}
 
-    def _normalize(self, table: str | TableReference | tuple[str, str]) -> TableReference:
-        """Парсит строковое или кортежное имя таблицы в TableReference."""
+    def _normalize(
+        self, table: str | TableReference | tuple[str, str] | exp.Table
+    ) -> TableReference:
+        """Нормализует имя таблицы в TableReference с сохранением семантики кавычек AST.
+
+        Различает:
+        - Обычные идентификаторы (orders / Orders) -> приводятся к нижнему регистру.
+        - Идентификаторы в кавычках ("Orders") -> сохраняют точный регистр.
+        - Имена со встроенной точкой ("public.orders") -> единое имя (без схемы).
+        - Квалифицированные имена (public.orders) -> схема public, таблица orders.
+        """
         if isinstance(table, TableReference):
-            schema = table.schema
-            name = table.name
+            return table
+
+        if isinstance(table, exp.Table):
+            tbl = table
         elif isinstance(table, tuple):
-            schema = str(table[0])
-            name = str(table[1])
+            schema_str, name_str = str(table[0]).strip(), str(table[1]).strip()
+            tbl = exp.Table(
+                this=exp.to_identifier(name_str),
+                db=exp.to_identifier(schema_str),
+            )
         else:
             table_str = str(table).strip()
-            parts = table_str.split(".")
-            if len(parts) == 1:
-                schema = self.default_schema
-                name = parts[0]
-            elif len(parts) == 2:
-                schema = parts[0]
-                name = parts[1]
-            else:
-                schema = parts[-2]
-                name = parts[-1]
+            try:
+                tbl = sqlglot.parse_one(table_str, read="postgres", into=exp.Table)
+            except Exception:
+                tbl = exp.Table(this=exp.to_identifier(table_str))
 
-        schema = schema.strip().strip('"')
-        name = name.strip().strip('"')
+        db_node = tbl.args.get("db")
+        db_quoted = getattr(db_node, "quoted", False) if db_node else False
+        if tbl.db:
+            schema = tbl.db if (db_quoted or self.case_sensitive) else tbl.db.lower()
+        else:
+            schema = self.default_schema if self.case_sensitive else self.default_schema.lower()
 
-        if not self.case_sensitive:
-            schema = schema.lower()
-            name = name.lower()
+        name_quoted = (
+            getattr(tbl.this, "quoted", False) if isinstance(tbl.this, exp.Identifier) else False
+        )
+        name = tbl.name if (name_quoted or self.case_sensitive) else tbl.name.lower()
 
         return TableReference(schema=schema, name=name)
 
@@ -95,7 +114,7 @@ class TableCatalog:
         """Возвращает True, если список разрешенных таблиц пуст."""
         return len(self._allowed) == 0
 
-    def is_table_allowed(self, table: str | TableReference | tuple[str, str]) -> bool:
+    def is_table_allowed(self, table: str | TableReference | tuple[str, str] | exp.Table) -> bool:
         """Проверяет допуск одной таблицы в ClickHouse."""
         ref = self._normalize(table)
         if ref in self._pg_only:
@@ -103,7 +122,7 @@ class TableCatalog:
         return ref in self._allowed
 
     def check_admission(
-        self, physical_tables: Sequence[str | TableReference | tuple[str, str]]
+        self, physical_tables: Sequence[str | TableReference | tuple[str, str] | exp.Table]
     ) -> TableAdmissionResult:
         """Выполняет детерминированную проверку списка физических таблиц."""
         pinned: list[str] = []

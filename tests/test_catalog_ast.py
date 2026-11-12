@@ -382,3 +382,59 @@ def test_router_join_wording_fix() -> None:
     decision = router.route(sql)
     assert "таблиц" not in decision.reason
     assert "2 JOIN" in decision.reason
+
+
+def test_router_ast_identifier_normalization_and_quotes() -> None:
+    """Проверяет строгое разделение идентификаторов: кавычки, регистры и встроенные точки."""
+    catalog = TableCatalog(allowed_tables=["orders"])
+    router = SQLShiftRouter(catalog=catalog)
+
+    # 1. Quoted "Orders" сохраняет регистр и не совпадает с orders -> в PostgreSQL
+    d1 = router.route('SELECT count(*) FROM "Orders"')
+    assert d1.target == "postgresql"
+    assert d1.reason_code == "TABLE_NOT_IN_CATALOG"
+    assert d1.physical_tables == ['"Orders"']
+
+    # 2. Имя со встроенной точкой "public.orders" трактуется как единое имя таблицы -> в PostgreSQL
+    d2 = router.route('SELECT count(*) FROM "public.orders"')
+    assert d2.target == "postgresql"
+    assert d2.reason_code == "TABLE_NOT_IN_CATALOG"
+    assert d2.physical_tables == ['"public.orders"']
+
+    # 3. Квалифицированное имя public.orders -> разрешено, уходит в ClickHouse
+    d3 = router.route("SELECT count(*) FROM public.orders")
+    assert d3.target == "clickhouse"
+    assert d3.reason_code == "ANALYTICAL_CLICKHOUSE"
+    # Для ClickHouse префикс public. удаляется во избежание ошибки Database public doesn't exist
+    assert "public." not in d3.sql
+    assert "orders" in d3.sql
+
+    # 4. Двойные кавычки "public"."orders" -> разрешено, уходит в ClickHouse
+    d4 = router.route('SELECT count(*) FROM "public"."orders"')
+    assert d4.target == "clickhouse"
+    assert d4.reason_code == "ANALYTICAL_CLICKHOUSE"
+
+    # 5. Обычный Orders без кавычек -> приводится к нижнему регистру orders -> разрешено
+    d5 = router.route("SELECT count(*) FROM Orders")
+    assert d5.target == "clickhouse"
+    assert d5.reason_code == "ANALYTICAL_CLICKHOUSE"
+
+
+def test_catalog_explicit_quoted_table_allowed() -> None:
+    """Проверяет, что если в каталоге явно разрешена \"Orders\", матчится именно она."""
+    catalog = TableCatalog(allowed_tables=['"Orders"'])
+    router = SQLShiftRouter(catalog=catalog)
+
+    assert router.route('SELECT count(*) FROM "Orders"').target == "clickhouse"
+    assert router.route("SELECT count(*) FROM orders").target == "postgresql"
+
+
+def test_clickhouse_transpile_schema_mapping() -> None:
+    """Проверяет сопоставление схем при транспайлинге в ClickHouse."""
+    catalog = TableCatalog(allowed_tables=["orders"], schema_mapping={"public": "default"})
+    router = SQLShiftRouter(catalog=catalog)
+
+    decision = router.route("SELECT count(*) FROM public.orders GROUP BY status")
+    assert decision.target == "clickhouse"
+    assert "default.orders" in decision.sql
+

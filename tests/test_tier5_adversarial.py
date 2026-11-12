@@ -117,9 +117,15 @@ def test_t5_cte_name_conflicts_with_schema_qualified_table() -> None:
 def test_t5_quoted_schema_case_insensitive() -> None:
     cat = TableCatalog(allowed_tables=["orders"], case_sensitive=False)
     router = SQLShiftRouter(catalog=cat)
-    decision = router.route('SELECT count(*) FROM "Public"."Orders";')
-    assert decision.target == "clickhouse"
-    assert decision.reason_code == "ANALYTICAL_CLICKHOUSE"
+    # 1. "public"."orders" в нижнем регистре разрешен в ClickHouse
+    d_admitted = router.route('SELECT count(*) FROM "public"."orders";')
+    assert d_admitted.target == "clickhouse"
+    assert d_admitted.reason_code == "ANALYTICAL_CLICKHOUSE"
+
+    # 2. "Public"."Orders" с заглавными в кавычках отличается от orders -> в PostgreSQL
+    d_rejected = router.route('SELECT count(*) FROM "Public"."Orders";')
+    assert d_rejected.target == "postgresql"
+    assert d_rejected.reason_code == "TABLE_NOT_IN_CATALOG"
 
 
 def test_t5_table_name_with_space_in_quotes() -> None:
