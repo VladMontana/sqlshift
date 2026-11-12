@@ -32,7 +32,16 @@ async def routing(payload: RouteRequest, request: Request) -> RouteResponse:
     shift_router = request.app.state.router
     decision = shift_router.route(payload.sql)
 
-    return RouteResponse.model_validate(decision)
+    return RouteResponse(
+        target=decision.target,
+        sql=decision.sql,
+        is_analytical=decision.is_analytical,
+        estimated_complexity=decision.estimated_complexity,
+        reason=decision.reason,
+        reason_code=decision.reason_code,
+        physical_tables=decision.physical_tables,
+        catalog_checked=decision.catalog_checked,
+    )
 
 
 @router.post("/query", response_model=QueryResponse, tags=["Query"])

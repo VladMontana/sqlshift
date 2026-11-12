@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from sqlshift.core.catalog import TableCatalog
 from sqlshift.core.router import SQLShiftRouter
 from sqlshift.server.config import ServerSettings
 from sqlshift.server.routers import router as api_router
@@ -28,9 +29,21 @@ def create_app(
     settings: ServerSettings | None = None,
     router: SQLShiftRouter | None = None,
     client: "AsyncSQLShiftClient | None" = None,
+    catalog: TableCatalog | None = None,
 ) -> FastAPI:
     settings = settings or ServerSettings()
-    router = router or SQLShiftRouter()
+
+    if router is None:
+        if catalog is not None:
+            router = SQLShiftRouter(catalog=catalog)
+        elif settings.allowed_tables is not None or settings.postgres_only_tables is not None:
+            cat = TableCatalog(
+                allowed_tables=settings.allowed_tables,
+                pg_only_tables=settings.postgres_only_tables,
+            )
+            router = SQLShiftRouter(catalog=cat)
+        else:
+            router = SQLShiftRouter()
 
     app = FastAPI(title=settings.title, version=settings.version, lifespan=lifespan)
     app.include_router(api_router, prefix=settings.api_prefix)

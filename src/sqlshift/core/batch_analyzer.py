@@ -4,19 +4,28 @@ from pathlib import Path
 import sqlglot
 from sqlglot import exp
 
+from sqlshift.core.catalog import TableCatalog
 from sqlshift.core.models import BatchAuditSummary, QueryAuditItem
 from sqlshift.core.parser import parse_sql
 from sqlshift.core.router import SQLShiftRouter
 
 
 class AnalyzeAllSql:
-    def __init__(self, queries: list[str], router: SQLShiftRouter | None = None) -> None:
+    def __init__(
+        self,
+        queries: list[str],
+        router: SQLShiftRouter | None = None,
+        catalog: TableCatalog | None = None,
+    ) -> None:
         self.queries = queries
-        self.router = router or SQLShiftRouter()
+        self.router = router or SQLShiftRouter(catalog=catalog)
 
     @classmethod
     def from_file(
-        cls, file_path: str | Path, router: SQLShiftRouter | None = None
+        cls,
+        file_path: str | Path,
+        router: SQLShiftRouter | None = None,
+        catalog: TableCatalog | None = None,
     ) -> "AnalyzeAllSql":
         file = Path(file_path)
         if not file.exists():
@@ -41,13 +50,18 @@ class AnalyzeAllSql:
             raise ValueError(f"В файле {file} не найдены валидные SQL-запросы")
 
         queries = [e.sql(dialect="postgres") for e in parsed_expressions]
-        return cls(queries, router)
+        return cls(queries, router=router, catalog=catalog)
 
     @classmethod
-    def from_list(cls, queries: list[str], router: SQLShiftRouter | None = None) -> "AnalyzeAllSql":
+    def from_list(
+        cls,
+        queries: list[str],
+        router: SQLShiftRouter | None = None,
+        catalog: TableCatalog | None = None,
+    ) -> "AnalyzeAllSql":
         if not queries:
             raise ValueError("Список запросов пуст")
-        return cls(queries, router)
+        return cls(queries, router=router, catalog=catalog)
 
     def _detect_bottlenecks(self, tree: exp.Expression) -> list[str]:
         """Анализирует AST и выявляет архитектурные узкие места (Bottlenecks)."""
@@ -55,7 +69,7 @@ class AnalyzeAllSql:
         # 1. Тяжелые многотабличные JOIN (3 и более)
         joins = list(tree.find_all(exp.Join))
         if len(joins) >= 3:
-            bottlenecks.append(f"Heavy JOIN: {len(joins)} tables joined")
+            bottlenecks.append(f"Heavy JOIN: {len(joins)} JOIN operations")
         # 2. Длинные цепочки CTE (WITH ... AS)
         ctes = list(tree.find_all(exp.CTE))
         if len(ctes) >= 2:

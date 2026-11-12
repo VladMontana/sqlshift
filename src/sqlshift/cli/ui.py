@@ -74,6 +74,18 @@ def print_route_decision(decision: RouteDecision, original_sql: str) -> None:
     reason_styled = Text(f"{decision.reason}", style="white")
     print_badge_line("reason", reason_styled, badge_bg=COLOR_REASON)
 
+    # 4. Код причины (Reason Code)
+    code_styled = Text(f"Reason Code: {decision.reason_code}", style="bold cyan")
+    print_badge_line("code", code_styled, badge_bg="#0891b2")
+
+    # 5. Физические таблицы (Physical Tables)
+    tables_display = ", ".join(decision.physical_tables) if decision.physical_tables else "(none)"
+    tables_styled = Text(
+        f"Physical Tables: {tables_display}",
+        style="bold magenta" if decision.physical_tables else "dim white",
+    )
+    print_badge_line("tables", tables_styled, badge_bg="#475569")
+
     console.print()
 
     # 4. Исходный SQL запрос (подсветка PostgreSQL)

@@ -129,3 +129,108 @@ async def test_client_concurrent_connect_race_protection(mock_db_drivers: dict[s
     assert mock_db_drivers["mock_pg_pool_factory"].call_count == 1
     assert mock_db_drivers["mock_ch_client_factory"].call_count == 1
     await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_with_catalog_allowed_table(mock_db_drivers: dict[str, Any]) -> None:
+    """Проверяет, что при наличии таблицы в каталоге аналитический запрос уходит в ClickHouse."""
+    from sqlshift.core.catalog import TableCatalog
+
+    catalog = TableCatalog(allowed_tables=["payments"])
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+        catalog=catalog,
+    )
+    assert client.router.catalog is catalog
+
+    async with client:
+        sql = "SELECT date_trunc('month', created_at), sum(amount) FROM payments GROUP BY 1"
+        rows = await client.fetch(sql)
+
+    assert rows == [{"month": "2026-01-01", "total": 1500}]
+    mock_db_drivers["mock_ch_client"].query.assert_called_once()
+    mock_db_drivers["mock_pg_conn"].fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_client_with_catalog_unallowed_table(mock_db_drivers: dict[str, Any]) -> None:
+    """Проверяет, что при отсутствии таблицы в каталоге
+    аналитический запрос остается в PostgreSQL."""
+    from sqlshift.core.catalog import TableCatalog
+
+    catalog = TableCatalog(allowed_tables=["orders"])
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+        catalog=catalog,
+    )
+
+    async with client:
+        sql = "SELECT date_trunc('month', created_at), sum(amount) FROM payments GROUP BY 1"
+        rows = await client.fetch(sql)
+
+    assert rows == [{"id": 42, "email": "user@example.com"}]
+    # Запрос остался в PostgreSQL
+    mock_db_drivers["mock_pg_conn"].fetch.assert_awaited_once_with(sql)
+    mock_db_drivers["mock_ch_client"].query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_client_with_catalog_pg_only_pinned_table(mock_db_drivers: dict[str, Any]) -> None:
+    """Проверяет, что таблица из pg_only_tables всегда направляется в PostgreSQL."""
+    from sqlshift.core.catalog import TableCatalog
+
+    catalog = TableCatalog(allowed_tables=["returns"], pg_only_tables=["returns"])
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+        catalog=catalog,
+    )
+
+    async with client:
+        sql = "SELECT status, count(*) FROM returns GROUP BY status"
+        await client.fetch(sql)
+
+    mock_db_drivers["mock_pg_conn"].fetch.assert_awaited_once_with(sql)
+    mock_db_drivers["mock_ch_client"].query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_client_with_empty_catalog(mock_db_drivers: dict[str, Any]) -> None:
+    """Проверяет, что пустой настроенный каталог блокирует ClickHouse."""
+    from sqlshift.core.catalog import TableCatalog
+
+    catalog = TableCatalog(allowed_tables=[])
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+        catalog=catalog,
+    )
+
+    async with client:
+        sql = "SELECT status, count(*) FROM orders GROUP BY status"
+        await client.fetch(sql)
+
+    mock_db_drivers["mock_pg_conn"].fetch.assert_awaited_once_with(sql)
+    mock_db_drivers["mock_ch_client"].query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_client_explicit_router_precedence() -> None:
+    """Проверяет, что переданный router имеет приоритет над catalog."""
+    from sqlshift.core.catalog import TableCatalog
+    from sqlshift.core.router import SQLShiftRouter
+
+    cat1 = TableCatalog(allowed_tables=["orders"])
+    cat2 = TableCatalog(allowed_tables=["payments"])
+    custom_router = SQLShiftRouter(catalog=cat1)
+
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+        router=custom_router,
+        catalog=cat2,
+    )
+    assert client.router is custom_router
+    assert client.router.catalog is cat1

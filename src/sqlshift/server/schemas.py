@@ -20,6 +20,9 @@ class RouteResponse(BaseModel):
     is_analytical: bool
     estimated_complexity: QueryComplexity
     reason: str
+    reason_code: str = "DEFAULT"
+    physical_tables: list[str] = Field(default_factory=list)
+    catalog_checked: bool = False
 
     model_config = {"from_attributes": True}
 

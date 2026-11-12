@@ -13,6 +13,9 @@ class Config(BaseSettings):
     pg_dsn: str | None = None
     ch_dsn: str | None = None
 
+    allowed_tables: list[str] | None = None
+    postgres_only_tables: list[str] | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

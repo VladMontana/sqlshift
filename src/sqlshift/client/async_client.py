@@ -3,6 +3,7 @@
 import asyncio
 from typing import Any
 
+from sqlshift.core.catalog import TableCatalog
 from sqlshift.core.models import RouteDecision
 from sqlshift.core.router import SQLShiftRouter
 
@@ -43,6 +44,7 @@ class AsyncSQLShiftClient:
         pg_dsn: str,
         ch_dsn: str,
         router: SQLShiftRouter | None = None,
+        catalog: TableCatalog | None = None,
     ) -> None:
         """Инициализирует клиент с DSN-строками подключения к обеим базам.
 
@@ -50,13 +52,14 @@ class AsyncSQLShiftClient:
             pg_dsn: Строка подключения к PostgreSQL (например, 'postgresql://user:pass@host:5432/db').
             ch_dsn: Строка подключения к ClickHouse (например, 'clickhouse://host:8123/db').
             router: Экземпляр SQLShiftRouter. Если не указан, создается с настройками по умолчанию.
+            catalog: Опциональный TableCatalog для проверки допуска таблиц в ClickHouse.
         """
         self.pg_dsn = pg_dsn
         self.ch_dsn = ch_dsn
         self._pg_pool: asyncpg.Pool | None = None
         self._ch_client: Any = None
         self._init_lock = asyncio.Lock()
-        self.router: SQLShiftRouter = router or SQLShiftRouter()
+        self.router: SQLShiftRouter = router or SQLShiftRouter(catalog=catalog)
 
     async def connect(self) -> None:
         """Инициализирует пулы подключений к PostgreSQL и ClickHouse с защитой от гонок."""

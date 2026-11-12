@@ -15,6 +15,7 @@ from sqlshift.cli.ui import (
     print_route_decision,
     print_server_banner,
 )
+from sqlshift.core.catalog import TableCatalog
 from sqlshift.core.router import SQLShiftRouter
 from sqlshift.utils.exception import SQLShiftError
 
@@ -26,6 +27,19 @@ app = typer.Typer(
 )
 
 
+def _parse_table_list(tables: str | list[str] | None) -> list[str] | None:
+    """Парсит строку с разделителями-запятыми или список строк в чистый список таблиц."""
+    if tables is None:
+        return None
+    if isinstance(tables, str):
+        raw_items = tables.split(",")
+    else:
+        raw_items = []
+        for item in tables:
+            raw_items.extend(item.split(","))
+    return [t.strip() for t in raw_items if t.strip()]
+
+
 @app.command(name="route")
 def route_query(
     sql: Annotated[
@@ -35,9 +49,32 @@ def route_query(
             show_default=False,
         ),
     ],
+    allowed_tables: Annotated[
+        str | None,
+        typer.Option(
+            "--allowed-tables",
+            help="Список таблиц, доступных в ClickHouse (через запятую: 'orders,order_items')",
+        ),
+    ] = None,
+    pg_only_tables: Annotated[
+        str | None,
+        typer.Option(
+            "--pg-only-tables",
+            help="Список таблиц, закрепленных за PostgreSQL (через запятую: 'returns')",
+        ),
+    ] = None,
 ) -> None:
     """Анализирует SQL-запрос, определяет базу (PostgreSQL или ClickHouse) и транспайлит диалект."""
-    router = SQLShiftRouter()
+    catalog = None
+    if allowed_tables is not None or pg_only_tables is not None:
+        allowed_list = _parse_table_list(allowed_tables) if allowed_tables is not None else None
+        pg_only_list = _parse_table_list(pg_only_tables) if pg_only_tables is not None else None
+        catalog = TableCatalog(
+            allowed_tables=allowed_list,
+            pg_only_tables=pg_only_list,
+        )
+
+    router = SQLShiftRouter(catalog=catalog)
     try:
         decision = router.route(sql)
         print_route_decision(decision, sql)
@@ -87,6 +124,20 @@ def audit_cmd(
             help="Автоматически открыть сгенерированный HTML-отчет в браузере",
         ),
     ] = False,
+    allowed_tables: Annotated[
+        str | None,
+        typer.Option(
+            "--allowed-tables",
+            help="Список таблиц, доступных в ClickHouse (через запятую)",
+        ),
+    ] = None,
+    pg_only_tables: Annotated[
+        str | None,
+        typer.Option(
+            "--pg-only-tables",
+            help="Список таблиц, закрепленных за PostgreSQL (через запятую)",
+        ),
+    ] = None,
 ) -> None:
     """Выполняет пакетный аудит SQL-запросов из файла и генерирует интерактивный HTML-дашборд."""
     if not file.exists() or not file.is_file():
@@ -94,7 +145,13 @@ def audit_cmd(
         raise typer.Exit(code=1)
 
     try:
-        analyzer = AnalyzeAllSql.from_file(file)
+        catalog = None
+        if allowed_tables is not None or pg_only_tables is not None:
+            allowed_list = _parse_table_list(allowed_tables) if allowed_tables is not None else None
+            pg_only_list = _parse_table_list(pg_only_tables) if pg_only_tables is not None else None
+            catalog = TableCatalog(allowed_tables=allowed_list, pg_only_tables=pg_only_list)
+
+        analyzer = AnalyzeAllSql.from_file(file, catalog=catalog)
         summary = analyzer.analyze()
         analyzer.to_html(output_path=output, title=title)
         print_audit_summary(summary, output)
@@ -125,10 +182,29 @@ def benchmark_cmd(
             help="Количество итераций для стресс-теста роутера в памяти",
         ),
     ] = 1000,
+    allowed_tables: Annotated[
+        str | None,
+        typer.Option(
+            "--allowed-tables",
+            help="Список таблиц, доступных в ClickHouse (через запятую)",
+        ),
+    ] = None,
+    pg_only_tables: Annotated[
+        str | None,
+        typer.Option(
+            "--pg-only-tables",
+            help="Список таблиц, закрепленных за PostgreSQL (через запятую)",
+        ),
+    ] = None,
 ) -> None:
     """Запускает бенчмарк скорости роутинга: по встроенным шаблонам или по вашему .sql файлу."""
     print_header("Performance Benchmark ⚡")
-    router = SQLShiftRouter()
+    catalog = None
+    if allowed_tables is not None or pg_only_tables is not None:
+        allowed_list = _parse_table_list(allowed_tables) if allowed_tables is not None else None
+        pg_only_list = _parse_table_list(pg_only_tables) if pg_only_tables is not None else None
+        catalog = TableCatalog(allowed_tables=allowed_list, pg_only_tables=pg_only_list)
+    router = SQLShiftRouter(catalog=catalog)
 
     if file is not None:
         if not file.exists() or not file.is_file():

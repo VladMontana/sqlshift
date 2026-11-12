@@ -93,3 +93,72 @@ def test_cli_audit_empty_file(tmp_path: Path) -> None:
     result = runner.invoke(app, ["audit", str(empty_file)])
     assert result.exit_code == 1
     assert "AUDIT ERROR" in result.stdout.upper()
+
+
+def test_cli_route_with_allowed_tables() -> None:
+    """Проверяет маршрутизацию в ClickHouse при явном указании --allowed-tables."""
+    sql = "SELECT status, count(*) FROM orders GROUP BY status"
+    result = runner.invoke(app, ["route", sql, "--allowed-tables", "orders"])
+    assert result.exit_code == 0
+    assert "ClickHouse" in result.stdout
+    assert "Reason Code" in result.stdout
+    assert "ANALYTICAL_CLICKHOUSE" in result.stdout
+    assert "Physical Tables" in result.stdout
+    assert "orders" in result.stdout
+
+
+def test_cli_route_with_missing_table() -> None:
+    """Проверяет удержание в PostgreSQL при отсутствии таблицы в --allowed-tables."""
+    sql = "SELECT status, count(*) FROM payments GROUP BY status"
+    result = runner.invoke(app, ["route", sql, "--allowed-tables", "orders"])
+    assert result.exit_code == 0
+    assert "PostgreSQL" in result.stdout
+    assert "Reason Code" in result.stdout
+    assert "TABLE_NOT_IN_CATALOG" in result.stdout
+    assert "payments" in result.stdout
+
+
+def test_cli_route_with_pg_only_tables() -> None:
+    """Проверяет приоритет --pg-only-tables над --allowed-tables."""
+    sql = "SELECT reason, count(*) FROM returns GROUP BY reason"
+    result = runner.invoke(
+        app,
+        ["route", sql, "--allowed-tables", "orders,returns", "--pg-only-tables", "returns"],
+    )
+    assert result.exit_code == 0
+    assert "PostgreSQL" in result.stdout
+    assert "Reason Code" in result.stdout
+    assert "TABLE_PG_PINNED" in result.stdout
+
+
+def test_cli_route_with_empty_catalog() -> None:
+    """Проверяет, что пустой --allowed-tables блокирует отправку в ClickHouse."""
+    sql = "SELECT status, count(*) FROM orders GROUP BY status"
+    result = runner.invoke(app, ["route", sql, "--allowed-tables", ""])
+    assert result.exit_code == 0
+    assert "PostgreSQL" in result.stdout
+    assert "TABLE_NOT_IN_CATALOG" in result.stdout
+
+
+def test_cli_audit_with_catalog(tmp_path: Path) -> None:
+    """Проверяет аудит с передачей параметров каталога."""
+    sql_file = tmp_path / "catalog_audit.sql"
+    sql_file.write_text(
+        "SELECT status, count(*) FROM orders GROUP BY status;\nSELECT * FROM users WHERE id = 1;\n",
+        encoding="utf-8",
+    )
+    report_file = tmp_path / "catalog_report.html"
+    result = runner.invoke(
+        app,
+        ["audit", str(sql_file), "-o", str(report_file), "--allowed-tables", "orders"],
+    )
+    assert result.exit_code == 0
+    assert "HTML dashboard generated" in result.stdout
+    assert report_file.exists()
+
+
+def test_cli_benchmark_with_catalog() -> None:
+    """Проверяет запуск бенчмарка с каталогом."""
+    result = runner.invoke(app, ["benchmark", "-n", "10", "--allowed-tables", "users,orders"])
+    assert result.exit_code == 0
+    assert "Benchmark completed successfully" in result.stdout
