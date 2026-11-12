@@ -1,0 +1,312 @@
+{
+  "run_id": "20261111_195132",
+  "start_timestamp_utc": "2026-11-11T19:51:32.032327+00:00",
+  "environment": {
+    "os_name": "Windows",
+    "os_release": "10",
+    "os_version": "10.0.19045",
+    "architecture": "AMD64",
+    "processor": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "cpu_logical_cores": 12,
+    "python_version": "3.13.5",
+    "python_implementation": "CPython",
+    "sqlglot_version": "30.18.0",
+    "git_commit": "a18846f4dfb8f6bd1b513c57fce9e69cbd580337"
+  },
+  "parameters": {
+    "series_count": 5,
+    "iterations_per_series": 200,
+    "warmup_iterations": 50,
+    "total_samples": 16000
+  },
+  "queries": [
+    {
+      "id": "Q1_OLTP_LOOKUP",
+      "name": "OLTP PK Lookup",
+      "sql": "SELECT id, customer_id, amount FROM orders WHERE id = 42",
+      "description": "Простой точечный поиск по первичному ключу"
+    },
+    {
+      "id": "Q2_OLTP_FILTER",
+      "name": "OLTP Multi-Filter",
+      "sql": "SELECT id, customer_id, status FROM orders WHERE status = 'paid' AND customer_id = 101",
+      "description": "Транзакционная фильтрация по нескольким колонкам"
+    },
+    {
+      "id": "Q3_OLAP_GROUP_BY",
+      "name": "OLAP Group By Agg",
+      "sql": "SELECT status, count(*) AS total_orders, sum(amount) AS total_revenue FROM orders GROUP BY status",
+      "description": "Агрегатный отчет с группировкой GROUP BY"
+    },
+    {
+      "id": "Q4_OLAP_WINDOW",
+      "name": "OLAP Window Function",
+      "sql": "SELECT id, amount, avg(amount) OVER (PARTITION BY customer_id) AS avg_cust_amount FROM orders",
+      "description": "Аналитическая оконная функция с партиционированием"
+    },
+    {
+      "id": "Q5_MULTI_JOIN",
+      "name": "Multi-table Join (3 tables)",
+      "sql": "SELECT o.id, c.name, p.title FROM orders o JOIN customers c ON o.customer_id = c.id JOIN products p ON o.product_id = p.id",
+      "description": "Соединение 3 физических таблиц через явные JOIN"
+    },
+    {
+      "id": "Q6_CTE_AGG",
+      "name": "Scope CTE Aggregation",
+      "sql": "WITH high_orders AS (SELECT * FROM orders WHERE amount > 1000) SELECT customer_id, count(*) AS high_count FROM high_orders GROUP BY customer_id",
+      "description": "CTE с фильтрацией и внешней группировкой"
+    },
+    {
+      "id": "Q7_DASHBOARD_COMPLEX",
+      "name": "Complex Dashboard",
+      "sql": "WITH monthly_sales AS (SELECT date_trunc('month', order_date) AS month, sum(amount) AS total FROM orders GROUP BY 1) SELECT month, total, lag(total) OVER (ORDER BY month) AS prev_month FROM monthly_sales",
+      "description": "Сложный дашборд: CTE + date_trunc + группировка + LAG()"
+    },
+    {
+      "id": "Q8_SCALAR_NO_TABLES",
+      "name": "Scalar Without Tables",
+      "sql": "SELECT 1 AS num, current_timestamp AS ts, 42 * 2 AS answer",
+      "description": "Вычисление скалярных выражений без физических таблиц"
+    }
+  ],
+  "stats_by_mode": {
+    "without_catalog": {
+      "Q1_OLTP_LOOKUP": {
+        "samples": 1000,
+        "mean_us": 264.99,
+        "median_us": 257.7,
+        "p95_us": 291.4,
+        "min_us": 246.3,
+        "max_us": 661.2,
+        "stddev_us": 34.11
+      },
+      "Q2_OLTP_FILTER": {
+        "samples": 1000,
+        "mean_us": 320.27,
+        "median_us": 311.4,
+        "p95_us": 368.5,
+        "min_us": 300.4,
+        "max_us": 599.1,
+        "stddev_us": 34.86
+      },
+      "Q3_OLAP_GROUP_BY": {
+        "samples": 1000,
+        "mean_us": 434.16,
+        "median_us": 417.7,
+        "p95_us": 595.4,
+        "min_us": 399.2,
+        "max_us": 723.0,
+        "stddev_us": 50.65
+      },
+      "Q4_OLAP_WINDOW": {
+        "samples": 1000,
+        "mean_us": 395.32,
+        "median_us": 374.5,
+        "p95_us": 542.6,
+        "min_us": 357.3,
+        "max_us": 6371.2,
+        "stddev_us": 195.35
+      },
+      "Q5_MULTI_JOIN": {
+        "samples": 1000,
+        "mean_us": 818.58,
+        "median_us": 786.6,
+        "p95_us": 976.4,
+        "min_us": 756.1,
+        "max_us": 1251.6,
+        "stddev_us": 75.31
+      },
+      "Q6_CTE_AGG": {
+        "samples": 1000,
+        "mean_us": 630.96,
+        "median_us": 585.35,
+        "p95_us": 840.1,
+        "min_us": 556.6,
+        "max_us": 1411.1,
+        "stddev_us": 115.41
+      },
+      "Q7_DASHBOARD_COMPLEX": {
+        "samples": 1000,
+        "mean_us": 814.68,
+        "median_us": 772.3,
+        "p95_us": 990.3,
+        "min_us": 732.6,
+        "max_us": 5728.1,
+        "stddev_us": 182.32
+      },
+      "Q8_SCALAR_NO_TABLES": {
+        "samples": 1000,
+        "mean_us": 210.22,
+        "median_us": 204.4,
+        "p95_us": 237.3,
+        "min_us": 196.9,
+        "max_us": 526.1,
+        "stddev_us": 25.1
+      }
+    },
+    "with_catalog": {
+      "Q1_OLTP_LOOKUP": {
+        "samples": 1000,
+        "mean_us": 288.17,
+        "median_us": 261.7,
+        "p95_us": 445.3,
+        "min_us": 248.9,
+        "max_us": 1894.3,
+        "stddev_us": 82.02
+      },
+      "Q2_OLTP_FILTER": {
+        "samples": 1000,
+        "mean_us": 324.19,
+        "median_us": 312.65,
+        "p95_us": 389.0,
+        "min_us": 301.6,
+        "max_us": 747.9,
+        "stddev_us": 42.41
+      },
+      "Q3_OLAP_GROUP_BY": {
+        "samples": 1000,
+        "mean_us": 460.59,
+        "median_us": 430.05,
+        "p95_us": 627.6,
+        "min_us": 406.9,
+        "max_us": 1330.0,
+        "stddev_us": 87.04
+      },
+      "Q4_OLAP_WINDOW": {
+        "samples": 1000,
+        "mean_us": 400.35,
+        "median_us": 384.4,
+        "p95_us": 506.3,
+        "min_us": 365.3,
+        "max_us": 714.4,
+        "stddev_us": 50.89
+      },
+      "Q5_MULTI_JOIN": {
+        "samples": 1000,
+        "mean_us": 843.91,
+        "median_us": 801.3,
+        "p95_us": 1001.7,
+        "min_us": 768.3,
+        "max_us": 8288.8,
+        "stddev_us": 252.4
+      },
+      "Q6_CTE_AGG": {
+        "samples": 1000,
+        "mean_us": 627.26,
+        "median_us": 591.6,
+        "p95_us": 830.3,
+        "min_us": 559.7,
+        "max_us": 1218.5,
+        "stddev_us": 90.19
+      },
+      "Q7_DASHBOARD_COMPLEX": {
+        "samples": 1000,
+        "mean_us": 818.54,
+        "median_us": 774.2,
+        "p95_us": 1020.6,
+        "min_us": 739.0,
+        "max_us": 1678.6,
+        "stddev_us": 110.26
+      },
+      "Q8_SCALAR_NO_TABLES": {
+        "samples": 1000,
+        "mean_us": 215.2,
+        "median_us": 205.5,
+        "p95_us": 273.8,
+        "min_us": 197.6,
+        "max_us": 711.6,
+        "stddev_us": 36.93
+      }
+    }
+  },
+  "overhead_comparison": [
+    {
+      "query_id": "Q1_OLTP_LOOKUP",
+      "name": "OLTP PK Lookup",
+      "description": "Простой точечный поиск по первичному ключу",
+      "without_catalog_median_us": 257.7,
+      "without_catalog_p95_us": 291.4,
+      "with_catalog_median_us": 261.7,
+      "with_catalog_p95_us": 445.3,
+      "delta_median_us": 4.0,
+      "overhead_percent": 1.55
+    },
+    {
+      "query_id": "Q2_OLTP_FILTER",
+      "name": "OLTP Multi-Filter",
+      "description": "Транзакционная фильтрация по нескольким колонкам",
+      "without_catalog_median_us": 311.4,
+      "without_catalog_p95_us": 368.5,
+      "with_catalog_median_us": 312.65,
+      "with_catalog_p95_us": 389.0,
+      "delta_median_us": 1.25,
+      "overhead_percent": 0.4
+    },
+    {
+      "query_id": "Q3_OLAP_GROUP_BY",
+      "name": "OLAP Group By Agg",
+      "description": "Агрегатный отчет с группировкой GROUP BY",
+      "without_catalog_median_us": 417.7,
+      "without_catalog_p95_us": 595.4,
+      "with_catalog_median_us": 430.05,
+      "with_catalog_p95_us": 627.6,
+      "delta_median_us": 12.35,
+      "overhead_percent": 2.96
+    },
+    {
+      "query_id": "Q4_OLAP_WINDOW",
+      "name": "OLAP Window Function",
+      "description": "Аналитическая оконная функция с партиционированием",
+      "without_catalog_median_us": 374.5,
+      "without_catalog_p95_us": 542.6,
+      "with_catalog_median_us": 384.4,
+      "with_catalog_p95_us": 506.3,
+      "delta_median_us": 9.9,
+      "overhead_percent": 2.64
+    },
+    {
+      "query_id": "Q5_MULTI_JOIN",
+      "name": "Multi-table Join (3 tables)",
+      "description": "Соединение 3 физических таблиц через явные JOIN",
+      "without_catalog_median_us": 786.6,
+      "without_catalog_p95_us": 976.4,
+      "with_catalog_median_us": 801.3,
+      "with_catalog_p95_us": 1001.7,
+      "delta_median_us": 14.7,
+      "overhead_percent": 1.87
+    },
+    {
+      "query_id": "Q6_CTE_AGG",
+      "name": "Scope CTE Aggregation",
+      "description": "CTE с фильтрацией и внешней группировкой",
+      "without_catalog_median_us": 585.35,
+      "without_catalog_p95_us": 840.1,
+      "with_catalog_median_us": 591.6,
+      "with_catalog_p95_us": 830.3,
+      "delta_median_us": 6.25,
+      "overhead_percent": 1.07
+    },
+    {
+      "query_id": "Q7_DASHBOARD_COMPLEX",
+      "name": "Complex Dashboard",
+      "description": "Сложный дашборд: CTE + date_trunc + группировка + LAG()",
+      "without_catalog_median_us": 772.3,
+      "without_catalog_p95_us": 990.3,
+      "with_catalog_median_us": 774.2,
+      "with_catalog_p95_us": 1020.6,
+      "delta_median_us": 1.9,
+      "overhead_percent": 0.25
+    },
+    {
+      "query_id": "Q8_SCALAR_NO_TABLES",
+      "name": "Scalar Without Tables",
+      "description": "Вычисление скалярных выражений без физических таблиц",
+      "without_catalog_median_us": 204.4,
+      "without_catalog_p95_us": 237.3,
+      "with_catalog_median_us": 205.5,
+      "with_catalog_p95_us": 273.8,
+      "delta_median_us": 1.1,
+      "overhead_percent": 0.54
+    }
+  ]
+}
