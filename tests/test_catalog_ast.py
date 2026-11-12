@@ -438,3 +438,40 @@ def test_clickhouse_transpile_schema_mapping() -> None:
     assert decision.target == "clickhouse"
     assert "default.orders" in decision.sql
 
+
+def test_clickhouse_transpile_column_references_with_schema() -> None:
+    """Проверяет, что при удалении схемы public ссылки на колонки public.orders.status
+    согласованно переписываются в orders.status.
+    """
+    catalog = TableCatalog(allowed_tables=["orders"])
+    router = SQLShiftRouter(catalog=catalog)
+
+    sql = (
+        "SELECT public.orders.status, count(*) "
+        "FROM public.orders "
+        "GROUP BY public.orders.status;"
+    )
+    decision = router.route(sql)
+    assert decision.target == "clickhouse"
+    # Ни в SELECT, ни в FROM, ни в GROUP BY не должно остаться префикса public.
+    assert "public." not in decision.sql
+    assert "orders.status" in decision.sql
+    assert "FROM orders" in decision.sql
+
+
+def test_clickhouse_transpile_preserves_quoted_schema_case() -> None:
+    """Проверяет, что правило mapping для 'public' не затрагивает 'Public' в кавычках."""
+    catalog = TableCatalog(allowed_tables=['"Public".orders'])
+    router = SQLShiftRouter(catalog=catalog)
+
+    sql = (
+        'SELECT "Public".orders.status, count(*) '
+        'FROM "Public".orders '
+        'GROUP BY "Public".orders.status;'
+    )
+    decision = router.route(sql)
+    assert decision.target == "clickhouse"
+    # Точный регистр "Public" должен быть сохранен, так как он не равен public
+    assert '"Public".orders' in decision.sql
+
+
