@@ -47,7 +47,7 @@ def analyze_query(tree: exp.Expression) -> tuple[bool, QueryComplexity, str]:
 
     joins = list(tree.find_all(exp.Join))
     if len(joins) >= 2:
-        return True, "high", f"Соединение {len(joins)} таблиц"
+        return True, "high", f"Множественное соединение ({len(joins)} JOIN)"
     elif len(joins) == 1:
         return False, "medium", "Одиночное соединение таблиц (OLTP JOIN)"
 

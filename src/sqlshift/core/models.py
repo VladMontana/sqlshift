@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 TargetDatabase = Literal["postgresql", "clickhouse"]
@@ -13,6 +13,9 @@ class RouteDecision:
     is_analytical: bool
     estimated_complexity: QueryComplexity
     reason: str
+    reason_code: str = "DEFAULT"
+    physical_tables: list[str] = field(default_factory=list)
+    catalog_checked: bool = False
 
 
 @dataclass

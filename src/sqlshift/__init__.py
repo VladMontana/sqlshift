@@ -1,6 +1,12 @@
 """sqlshift: Cross-dialect SQL query router and transpiler."""
 
 from sqlshift.core.batch_analyzer import AnalyzeAllSql
+from sqlshift.core.catalog import (
+    TableAdmissionPolicy,
+    TableCatalog,
+    TableReference,
+    extract_physical_tables,
+)
 from sqlshift.core.html_report import generate_html_report
 from sqlshift.core.models import (
     BatchAuditSummary,
@@ -20,6 +26,10 @@ __version__ = "0.1.0"
 __all__ = [
     "SQLRouter",
     "SQLShiftRouter",
+    "TableCatalog",
+    "TableAdmissionPolicy",
+    "TableReference",
+    "extract_physical_tables",
     "RouteDecision",
     "TargetDatabase",
     "QueryComplexity",

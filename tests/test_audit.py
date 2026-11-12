@@ -111,8 +111,7 @@ def test_generate_html_report_direct() -> None:
 def test_analyze_from_file_with_semicolons_in_strings(tmp_path: Path) -> None:
     sql_file = tmp_path / "quoted_semicolons.sql"
     sql_file.write_text(
-        "SELECT * FROM logs WHERE message = 'val;with;semicolons';\n"
-        "SELECT count(*) FROM events;\n",
+        "SELECT * FROM logs WHERE message = 'val;with;semicolons';\nSELECT count(*) FROM events;\n",
         encoding="utf-8",
     )
     analyzer = AnalyzeAllSql.from_file(sql_file)
