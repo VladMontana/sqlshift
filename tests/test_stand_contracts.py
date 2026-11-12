@@ -114,6 +114,10 @@ def test_clickhouse_init_sql_contracts() -> None:
     assert "ORDER BY id" in content
     assert "amount Decimal(10, 2)" in content
 
+    # Проверка поддержки квалифицированных имен public.orders
+    assert "CREATE DATABASE IF NOT EXISTS public" in content
+    assert "CREATE VIEW IF NOT EXISTS public.orders" in content
+
     # Проверка отсутствия returns (изоляция аналитического каталога)
     assert "CREATE TABLE IF NOT EXISTS returns" not in content
 
@@ -244,3 +248,20 @@ def test_cross_db_comparison_logic() -> None:
             rev_pg = Decimal(str(pg_r["total_revenue"]))
             rev_ch = Decimal(str(ch_r["total_revenue"]))
             assert abs(rev_pg - rev_ch) < Decimal("0.001")
+
+
+def test_stand_scenario_qualified_public_orders() -> None:
+    """Проверяет сценарий 4: запрос с public.orders идет в ClickHouse и транспайлится."""
+    catalog = TableCatalog(
+        allowed_tables=["orders"],
+        postgres_only_tables=["returns"],
+    )
+    router = SQLShiftRouter(catalog=catalog)
+    q4 = "SELECT count(*) AS total_orders, sum(amount) AS total_revenue FROM public.orders"
+    dec4 = router.route(q4)
+    assert dec4.target == "clickhouse"
+    assert dec4.is_analytical
+    assert dec4.reason_code == "ANALYTICAL_CLICKHOUSE"
+    assert "public." not in dec4.sql
+    assert "orders" in dec4.sql
+

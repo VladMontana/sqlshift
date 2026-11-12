@@ -114,9 +114,13 @@ class SQLShiftRouter:
             )
 
         # 7. Аналитические запросы (OLAP)
+        schema_mapping: dict[str, str | None] = (
+            self.catalog.schema_mapping if self.catalog is not None else {"public": None}
+        )
+
         # Режим А: Без каталога (catalog is None) — 100% обратная совместимость
         if self.catalog is None:
-            final_sql = transpile_to_clickhouse(tree)
+            final_sql = transpile_to_clickhouse(tree, schema_mapping=schema_mapping)
             return RouteDecision(
                 target="clickhouse",
                 sql=final_sql,
@@ -148,7 +152,7 @@ class SQLShiftRouter:
         # Б.2. Проверка допуска физических таблиц по каталогу
         admission = self.catalog.check_admission(physical_tables)
         if admission.is_admitted:
-            final_sql = transpile_to_clickhouse(tree)
+            final_sql = transpile_to_clickhouse(tree, schema_mapping=schema_mapping)
             return RouteDecision(
                 target="clickhouse",
                 sql=final_sql,

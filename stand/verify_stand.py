@@ -255,12 +255,32 @@ async def main() -> int:
         print(f"  Итого возвратов: {total_refunded:.2f} (точно совпадает с ожидаемым сидом)")
         print("  [OK] Сценарий 3 успешно пройден!")
 
+        # Сценарий 4: Квалифицированное имя public.orders (проверка транспайлинга и эквивалентности)
+        print("\n[5/5] Сценарий 4: Аналитический запрос с квалифицированным именем public.orders")
+        query_s4 = "SELECT count(*) AS cnt, sum(amount) AS total FROM public.orders"
+        dec_s4 = router.route(query_s4)
+        print(f"  SQL: {query_s4}")
+        print(f"  Решение: target={dec_s4.target}, code={dec_s4.reason_code}")
+        print(f"  Транспайленный ClickHouse SQL: {dec_s4.sql}")
+        assert dec_s4.target == "clickhouse", f"Ожидался clickhouse, получено {dec_s4.target}"
+        assert "public." not in dec_s4.sql, "Префикс public. должен быть удален для ClickHouse"
+        ch_res_s4 = ch_client.query(dec_s4.sql)
+        pg_records_s4 = await pg_conn.fetch(query_s4)
+        pg_rows_s4 = [dict(r) for r in pg_records_s4]
+        assert pg_rows_s4[0]["cnt"] == ch_res_s4.result_rows[0][0] == 10
+        assert (
+            Decimal(str(pg_rows_s4[0]["total"]))
+            == Decimal(str(ch_res_s4.result_rows[0][1]))
+            == Decimal("2300.00")
+        )
+        print("  [OK] Сценарий 4: public.orders успешно разрешен и проверен на паритет!")
+
     finally:
         await pg_conn.close()
         ch_client.close()
 
     print("\n" + "=" * 70)
-    print(" ВСЕ 3 СЦЕНАРИЯ СТЕНДА УСПЕШНО ВЕРИФИЦИРОВАНЫ (100% SUCCESS)!")
+    print(" ВСЕ 4 СЦЕНАРИЯ СТЕНДА УСПЕШНО ВЕРИФИЦИРОВАНЫ (100% SUCCESS)!")
     print("=" * 70)
     return 0
 
