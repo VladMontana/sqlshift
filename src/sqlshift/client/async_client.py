@@ -110,6 +110,11 @@ class AsyncSQLShiftClient:
             list[dict[str, Any]]: Список строк результатов.
         """
         if decision.target == "clickhouse":
+            if parameters:
+                raise NotImplementedError(
+                    "Параметризованные запросы для ClickHouse пока не поддерживаются. "
+                    "Выполните запрос с параметрами в PostgreSQL или подставьте значения в SQL."
+                )
             return await self._execute_clickhouse(decision.sql)
         else:
             return await self._execute_postgres(decision.sql, parameters=parameters)

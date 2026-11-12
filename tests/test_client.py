@@ -234,3 +234,30 @@ async def test_client_explicit_router_precedence() -> None:
     )
     assert client.router is custom_router
     assert client.router.catalog is cat1
+
+
+@pytest.mark.asyncio
+async def test_client_clickhouse_parameters_raises_not_implemented(
+    mock_db_drivers: dict[str, Any],
+) -> None:
+    """Проверяет, что передача параметров в запрос, направленный в ClickHouse,
+    вызывает явную ошибку NotImplementedError во избежание потери аргументов.
+    """
+    from sqlshift.core.catalog import TableCatalog
+
+    catalog = TableCatalog(allowed_tables=["orders"])
+    client = AsyncSQLShiftClient(
+        pg_dsn="postgresql://localhost:5432/testdb",
+        ch_dsn="clickhouse://localhost:8123/testdb",
+        catalog=catalog,
+    )
+
+    async with client:
+        # Запрос с агрегацией идет в ClickHouse
+        sql = "SELECT status, count(*) FROM orders WHERE customer_id = $1 GROUP BY status"
+        with pytest.raises(
+            NotImplementedError,
+            match="Параметризованные запросы для ClickHouse пока не поддерживаются",
+        ):
+            await client.fetch(sql, (101,))
+
