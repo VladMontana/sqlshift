@@ -28,6 +28,6 @@
 | `Q8_SCALAR_NO_TABLES` | Scalar Without Tables | 204.4 | 205.5 | +1.1 | +0.5% | 273.8 |
 
 ## Key Findings
-1. **Target Latency SLA**: All queries in `with_catalog` mode operate far below 1.5 ms (1500 µs).
-2. **Catalog Scope Overhead**: AST scope traversal introduces minimal deterministic overhead.
+1. **Target Latency SLA**: All 8 query templates exhibit median and p95 latency below 1.5 ms (1500 µs) on the test platform. Medians range from 205.5 to 801.3 µs, and maximum p95 across templates is 1020.6 µs (6 of 8 templates have p95 < 850 µs). Individual outliers may exceed this bound, so 1.5 ms cannot be guaranteed for every single arbitrary query invocation.
+2. **Catalog Overhead**: Adding table catalog checks increases median latency by 0.25% to 2.96% (+1.1 to +14.7 µs). Note that both modes execute `extract_physical_tables()`; thus, this delta reflects the incremental cost of catalog lookup, not the full cost of AST scope analysis.
 3. **Reproducibility**: Complete raw timing records are archived in `benchmark_raw.csv`.
